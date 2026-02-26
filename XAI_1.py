@@ -1,7 +1,8 @@
 import pandas as pd
-import numpy
+import numpy as np
 # import geopandas
-from bokeh import models, plotting, layouts, io
+from bokeh import plotting, layouts, io, transform
+from bokeh.models import CustomJS, Dropdown, ColumnDataSource, FactorRange
 
 
 from currency_converter import CurrencyConverter
@@ -29,7 +30,7 @@ for csv in ['assignment1_data/sales_202111.csv', 'assignment1_data/sales_202112.
     df = df.rename(columns={
             'Order Charged Date': 'Transaction Date',
             'Product ID': 'Product id',
-            'Sku ID': 'Sku Id',
+            'SKU ID': 'Sku Id',
             'Country of Buyer': 'Buyer Country',
             'Postal Code of Buyer': 'Buyer Postal Code',
     })
@@ -96,10 +97,10 @@ sales_db = sales_db[(sales_db['Product_id'] == 'com.vansteinengroentjes.apps.ddf
 path_name = Path('assignment1_data').glob(r'stats_crashes*')
 stats_crashes = []
 for csv in path_name:
-    df = pd.read_csv(csv, encoding='utf-16', sep=',')[:5]
+    df = pd.read_csv(csv, encoding='utf-16', sep=',')
     stats_crashes.append(df)
 
-stats_db = pd.concat(stats_crashes)
+crashes_db = pd.concat(stats_crashes, ignore_index=True)
 
 
 # --------------- RATINGS COUNTRY --------------------------------------------------
@@ -109,18 +110,29 @@ for csv in path_name:
     df = pd.read_csv(csv, encoding='utf-16', sep=',')
     ratings_countries.append(df)
 
-ratings_countries_db = pd.concat(ratings_countries)
+ratings_countries_db = pd.concat(ratings_countries, ignore_index=True)
 # print(ratings_countries_db[:20].to_string())
 
+#--------------- RATINGS OVERVIEW --------------------------------------------------
+path_name = Path('assignment1_data').glob(r'stats_ratings*overview*')
+ratings_overview = []
+for csv in path_name:
+    df = pd.read_csv(csv, encoding='utf-16', sep=',')
+    ratings_overview.append(df)
+
+ratings_overview_db = pd.concat(ratings_overview, ignore_index=True)
 
 # --------------- DASHBOARD --------------------------------------------------
 # Sales
 days = []
 months = []
+sku_ids = []
 daily_merchant_amount = {}
 daily_transaction_count = {}
 monthly_merchant_amount = {}
 monthly_transaction_count = {}
+sku_id_per_month_amount = {}
+sku_id_per_month_count = {}
 for i, row in sales_db.iterrows():
     date = row['Transaction Date']
     if date not in days:
@@ -135,10 +147,34 @@ for i, row in sales_db.iterrows():
         months.append(date[:3])
         monthly_merchant_amount[date[:3]] = float(row['Amount (Merchant Currency)'])
         monthly_transaction_count[date[:3]] = 1
+
+        sku_id = row['Sku Id']
+
+        for sku_dict in [sku_id_per_month_amount, sku_id_per_month_count]:
+            for sku_id_list in sku_dict.values():
+                while len(sku_id_list) != len(months):
+                    sku_id_list.append(0)
+
+        if sku_id not in sku_id_per_month_amount:
+            sku_id_per_month_amount[sku_id] = [float(row['Amount (Merchant Currency)'])]
+            sku_id_per_month_count[sku_id] = [1]
+            sku_ids.append(sku_id)
+        else:
+            sku_id_per_month_amount[sku_id][-1] += float(row['Amount (Merchant Currency)'])
+            sku_id_per_month_count[sku_id][-1] += 1
     else:
         monthly_merchant_amount[date[:3]] += float(row['Amount (Merchant Currency)'])
         monthly_transaction_count[date[:3]] += 1
 
+        sku_id = row['Sku Id']
+
+        if sku_id not in sku_id_per_month_amount:
+            sku_id_per_month_amount[sku_id] = [float(row['Amount (Merchant Currency)'])]
+            sku_id_per_month_count[sku_id] = [1]
+            sku_ids.append(sku_id)
+        else:
+            sku_id_per_month_amount[sku_id][-1] += float(row['Amount (Merchant Currency)'])
+            sku_id_per_month_count[sku_id][-1] += 1
 # print months
 # for date, merchant_amount in monthly_merchant_amount.items():
 #     print(date, merchant_amount)
@@ -146,7 +182,7 @@ for i, row in sales_db.iterrows():
 # for date, transaction_count in monthly_transaction_count.items():
 #     print(date, transaction_count)
 
-sales_source = models.ColumnDataSource(data=sales_db)
+sales_source = ColumnDataSource(data=sales_db)
 x = months
 
 p1 = plotting.figure(x_range=x, title='Monthly Sales')
@@ -168,18 +204,89 @@ p4 = plotting.figure(x_range=x, title='Daily Transaction Counts')
 y = list(daily_transaction_count.values())
 p4.line(x, y)
 
-graphs = [p1, p2, p3, p4]
+
+# For sku_id seperation:
+
+data_amount = {"months": months}
+for key, value in sku_id_per_month_amount.items():
+    data_amount[key] = value
+
+data_count = {"months": months}
+for key, value in sku_id_per_month_count.items():
+    data_count[key] = value
+
+source = ColumnDataSource(data=data_amount)
+
+p1sku = plotting.figure(x_range=months, title="Monthly Sales by Sku Id",
+                    height=350, toolbar_location=None, tools="")
+
+p1sku.vbar(x=transform.dodge('months', -0.25, range=p1sku.x_range), top='unlockcharactermanager', source=source,
+       width=0.2, color="#c9d9d3", legend_label="unlockcharactermanager")
+
+p1sku.vbar(x=transform.dodge('months', 0.0, range=p1sku.x_range), top='premium', source=source,
+       width=0.2, color="#718dbf", legend_label="premium")
+
+p1sku.x_range.range_padding = 0.1
+p1sku.xgrid.grid_line_color = None
+p1sku.legend.location = "top_left"
+p1sku.legend.orientation = "horizontal"
+
+source = ColumnDataSource(data=data_count)
+
+p2sku = plotting.figure(x_range=months, title="Monthly Transaction Counts by Sku Id",
+                     height=350, toolbar_location=None, tools="")
+
+p2sku.vbar(x=transform.dodge('months', -0.25, range=p2sku.x_range), top='unlockcharactermanager', source=source,
+        width=0.2, color="#c9d9d3", legend_label="unlockcharactermanager")
+
+p2sku.vbar(x=transform.dodge('months', 0.0, range=p2sku.x_range), top='premium', source=source,
+        width=0.2, color="#718dbf", legend_label="premium")
+
+p2sku.x_range.range_padding = 0.1
+p2sku.xgrid.grid_line_color = None
+p2sku.legend.location = "top_left"
+p2sku.legend.orientation = "horizontal"
+
+graphs = [p1, p2, p3, p4, p1sku, p2sku]
 cols = []
 row_num = 2
 for i in range(0, len(graphs), row_num):
     r = layouts.row(graphs[i : i + row_num])
     cols.append(r)
 
-plotting.show(layouts.column(cols))
+# plotting.show(layouts.column(cols))
 
-crashes_source = models.ColumnDataSource(data=stats_db)
-ratings_countries_source = models.ColumnDataSource(data=ratings_countries_db)
+# crashes_source = ColumnDataSource(data=stats_db)
+# ratings_countries_source = ColumnDataSource(data=ratings_countries_db)
 
+
+# crashes:
+
+crashes_list = []
+ratings_list = []
+
+for i, row in ratings_overview_db.iterrows():
+    print(i)
+    if pd.isna(row["Daily Average Rating"]):
+        continue
+    ratings_list.append(row["Daily Average Rating"])
+    crashes_list.append(crashes_db.iloc[i]["Daily Crashes"])
+
+rxc = plotting.figure(title = "Daily Average Rating by Daily Crashes")
+
+# points to be plotted
+par = np.polyfit(ratings_list, crashes_list, 1, full=True)
+slope=par[0][0]
+intercept=par[0][1]
+y_predicted = [slope*i + intercept  for i in ratings_list]
+
+# plotting the graph
+rxc.scatter(ratings_list, crashes_list)
+# plot regression line
+rxc.line(ratings_list,y_predicted, color='red')
+
+# displaying the model
+plotting.show(rxc)
 
 # print(stats_db)
 
