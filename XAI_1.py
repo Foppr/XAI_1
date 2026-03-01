@@ -369,7 +369,7 @@ for i, row in sales_db.iterrows():
         growth[country] = [0, 0, 0] # sales first month, sales second month, growth
     if months.index(date[:3]) <= 1:
         growth[country][0] += float(row['Amount (Merchant Currency)'])
-    elif months.index(date[:3]) >= len(months)-1:
+    elif months.index(date[:3]) >= len(months)-2:
         growth[country][1] += float(row['Amount (Merchant Currency)'])
 
 print(growth)
@@ -382,7 +382,7 @@ ranking = sorted(growth.items(), key=lambda x: x[1][2], reverse=True)
 
 for rank, (country, values) in enumerate(ranking, start=1):
     g = values[2]
-    print(f"{rank}. {country} - Growth: {g:.2f} (Sales in first 2 months vs last 2 months: {values[0]}, {values[1]}")
+    print(f"{rank}. {country} - Growth: {g:.2f} (Months 1-2 vs 6-7: {values[0]}, {values[1]})")
 
 
 
