@@ -1,12 +1,14 @@
 import pandas as pd
 import numpy as np
 import geopandas
-from geodatasets import get_path
+import geodatasets
 from bokeh import plotting, layouts, io, transform
-from bokeh.models import CustomJS, Dropdown, ColumnDataSource, FactorRange
+from bokeh.models import CustomJS, Dropdown, ColumnDataSource, FactorRange, GeoJSONDataSource
+from bokeh.sampledata.sample_geojson import geojson
+import json
+import matplotlib
 
 from shapely.geometry import Polygon
-
 
 from currency_converter import CurrencyConverter
 from pathlib import Path
@@ -269,7 +271,7 @@ crashes_list = []
 ratings_list = []
 
 for i, row in ratings_overview_db.iterrows():
-    print(i)
+    # print(i)
     if pd.isna(row["Daily Average Rating"]):
         continue
     ratings_list.append(row["Daily Average Rating"])
@@ -281,7 +283,7 @@ rxc = plotting.figure(title = "Daily Average Rating by Daily Crashes")
 par = np.polyfit(ratings_list, crashes_list, 1, full=True)
 slope=par[0][0]
 intercept=par[0][1]
-y_predicted = [slope*i + intercept  for i in ratings_list]
+y_predicted = [slope*i + intercept for i in ratings_list]
 
 # plotting the graph
 rxc.scatter(ratings_list, crashes_list)
@@ -292,35 +294,30 @@ rxc.line(ratings_list,y_predicted, color='red')
 # plotting.show(rxc)
 
 # path_to_data = get_path("country_data/ne_110m_admin_0_countries.shp")
-world = geopandas.read_file("country_data/ne_110m_admin_0_countries.shp")
 # print(list(world.keys()))
 # Source - https://stackoverflow.com/a/56110989
 # Posted by Tony
 # Retrieved 2026-03-01, License - CC BY-SA 4.0
 
 
+# ------------------------------------- COUNTRIES -------------------------------------
 
-# world = gp.read_file(gp.datasets.get_path('naturalearth_lowres'))
-# europe = (world.loc[world['continent'] == 'Europe'])
-names = [country for country in world['NAME_UK']]
+#---------------------------------------------
+# world = geopandas.read_file("country_data/ne_110m_admin_0_countries.shp")
 
-countries = []
-[countries.append(country) if type(item) == Polygon else [countries.append(country) for i in list(item)] for item, country in zip(world.geometry, names)]
+cities = geopandas.read_file(geodatasets.get_path("naturalearth.cities"))
 
-polygons = []
-[polygons.append(item) if type(item) == Polygon else [polygons.append(i) for i in list(item)] for item in world.geometry]
+# cities.plot().figure.canvas.show()
+print(type(cities))
+print(cities.to_string())
 
-xs, ys = [], []
-xs = [list(polygon.boundary.coords.xy[0]) for polygon in polygons]
-ys = [list(polygon.boundary.coords.xy[1]) for polygon in polygons]
 
-source = ColumnDataSource(dict(xs = xs, ys = ys, countries = countries))
 
-p = figure(title = 'World', tools = 'pan, wheel_zoom, box_zoom, reset, hover, save', tooltips = [('Countries', '@countries')],
-           x_range = (-30, 60), y_range = (30, 85), x_axis_location = None, y_axis_location = None)
 
-p.patches('xs', 'ys', fill_alpha = 0.7, fill_color = 'green', line_color = 'black', line_width = 0.5, source = source)
-show(p)
+
+
+
+
 
 
 # print(stats_db)
