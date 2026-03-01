@@ -1,8 +1,11 @@
 import pandas as pd
 import numpy as np
-# import geopandas
+import geopandas
+from geodatasets import get_path
 from bokeh import plotting, layouts, io, transform
 from bokeh.models import CustomJS, Dropdown, ColumnDataSource, FactorRange
+
+from shapely.geometry import Polygon
 
 
 from currency_converter import CurrencyConverter
@@ -286,7 +289,39 @@ rxc.scatter(ratings_list, crashes_list)
 rxc.line(ratings_list,y_predicted, color='red')
 
 # displaying the model
-plotting.show(rxc)
+# plotting.show(rxc)
+
+# path_to_data = get_path("country_data/ne_110m_admin_0_countries.shp")
+world = geopandas.read_file("country_data/ne_110m_admin_0_countries.shp")
+# print(list(world.keys()))
+# Source - https://stackoverflow.com/a/56110989
+# Posted by Tony
+# Retrieved 2026-03-01, License - CC BY-SA 4.0
+
+
+
+# world = gp.read_file(gp.datasets.get_path('naturalearth_lowres'))
+# europe = (world.loc[world['continent'] == 'Europe'])
+names = [country for country in world['NAME_UK']]
+
+countries = []
+[countries.append(country) if type(item) == Polygon else [countries.append(country) for i in list(item)] for item, country in zip(world.geometry, names)]
+
+polygons = []
+[polygons.append(item) if type(item) == Polygon else [polygons.append(i) for i in list(item)] for item in world.geometry]
+
+xs, ys = [], []
+xs = [list(polygon.boundary.coords.xy[0]) for polygon in polygons]
+ys = [list(polygon.boundary.coords.xy[1]) for polygon in polygons]
+
+source = ColumnDataSource(dict(xs = xs, ys = ys, countries = countries))
+
+p = figure(title = 'World', tools = 'pan, wheel_zoom, box_zoom, reset, hover, save', tooltips = [('Countries', '@countries')],
+           x_range = (-30, 60), y_range = (30, 85), x_axis_location = None, y_axis_location = None)
+
+p.patches('xs', 'ys', fill_alpha = 0.7, fill_color = 'green', line_color = 'black', line_width = 0.5, source = source)
+show(p)
+
 
 # print(stats_db)
 
