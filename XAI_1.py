@@ -260,8 +260,6 @@ for i in range(0, len(graphs), row_num):
     r = layouts.row(graphs[i : i + row_num])
     cols.append(r)
 
-# plotting.show(layouts.column(cols))
-
 # crashes_source = ColumnDataSource(data=stats_db)
 # ratings_countries_source = ColumnDataSource(data=ratings_countries_db)
 
@@ -292,7 +290,14 @@ rxc.scatter(ratings_list, crashes_list)
 rxc.line(ratings_list,y_predicted, color='red')
 
 # displaying the model
-# plotting.show(rxc)
+graphs = [p1, p2, p3, p4, p1sku, p2sku, rxc]
+cols = []
+row_num = 2
+for i in range(0, len(graphs), row_num):
+    r = layouts.row(graphs[i : i + row_num])
+    cols.append(r)
+plotting.show(layouts.column(cols))
+
 
 # path_to_data = get_path("country_data/ne_110m_admin_0_countries.shp")
 # print(list(world.keys()))
@@ -312,46 +317,72 @@ rxc.line(ratings_list,y_predicted, color='red')
 # print(type(cities))
 # print(cities.to_string())
 
+#
+# import xyzservices.providers as xyz
+#
+# from bokeh.plotting import figure, show
+#
+# # range bounds supplied in web mercator coordinates
+# p = figure(x_range=(-2000000, 6000000), y_range=(-1000000, 7000000),
+#            x_axis_type="mercator", y_axis_type="mercator")
+# p.add_tile(xyz.OpenStreetMap.Mapnik)
+#
+# # show(p)
+#
+#
+# # Example dataset
+# df = pd.DataFrame({
+#     "country_code": ["FR", "US", "DE"],
+#     "value": [0, 0, 0]
+# })
+#
+# # Load built-in world dataset
+# world = geopandas.read_file("country_data/ne_110m_admin_0_countries.shp")
+#
+# # Merge your data with world map (ISO-2 → ISO-3 conversion needed)
+# import pycountry
+#
+# def iso2_to_iso3(code):
+#     return pycountry.countries.get(alpha_2=code).alpha_3
+#
+# df["iso_a3"] = df["country_code"].apply(iso2_to_iso3)
+#
+# merged = world.merge(df, left_on="ADM0_ISO", right_on="iso_a3")
+# print(merged.to_string())
+# # Compute country centroids
+# merged["center"] = merged.geometry.to_crs('epsg:3785').centroid
+# x_axis = merged.center.x
+# y_axis = merged.center.y
+#
+# print(x_axis, y_axis)
 
-import xyzservices.providers as xyz
 
-from bokeh.plotting import figure, show
+#-------- find emerging countries
+# find countries with highest sales growth:
+# total sales last 2 months divided by total sales first 2 months -1
 
-# range bounds supplied in web mercator coordinates
-p = figure(x_range=(-2000000, 6000000), y_range=(-1000000, 7000000),
-           x_axis_type="mercator", y_axis_type="mercator")
-p.add_tile(xyz.OpenStreetMap.Mapnik)
+growth = {}
+for i, row in sales_db.iterrows():
+    country = row["Buyer Country"]
+    date = row['Transaction Date']
+    if country not in growth:
+        growth[country] = [0, 0, 0] # sales first month, sales second month, growth
+    if months.index(date[:3]) <= 1:
+        growth[country][0] += float(row['Amount (Merchant Currency)'])
+    elif months.index(date[:3]) >= len(months)-1:
+        growth[country][1] += float(row['Amount (Merchant Currency)'])
 
-# show(p)
+print(growth)
+for country in growth.keys():
+    if growth[country][0] == 0:
+        growth[country][0] = 1
+    growth[country][2] = (growth[country][1] / growth[country][0]) - 1
 
+ranking = sorted(growth.items(), key=lambda x: x[1][2], reverse=True)
 
-# Example dataset
-df = pd.DataFrame({
-    "country_code": ["FR", "US", "DE"],
-    "value": [0, 0, 0]
-})
-
-# Load built-in world dataset
-world = geopandas.read_file("country_data/ne_110m_admin_0_countries.shp")
-print(world.head().to_string())
-
-# Merge your data with world map (ISO-2 → ISO-3 conversion needed)
-import pycountry
-
-def iso2_to_iso3(code):
-    return pycountry.countries.get(alpha_2=code).alpha_3
-
-df["iso_a3"] = df["country_code"].apply(iso2_to_iso3)
-
-merged = world.merge(df, left_on="ADM0_ISO", right_on="iso_a3")
-# Compute country centroids
-merged["center"] = merged.geometry.to_crs('epsg:3785').centroid
-x_axis = merged.center.x
-y_axis = merged.center.y
-
-print(x_axis, y_axis)
-
-
+for rank, (country, values) in enumerate(ranking, start=1):
+    g = values[2]
+    print(f"{rank}. {country} - Growth: {g:.2f} (Sales in first 2 months vs last 2 months: {values[0]}, {values[1]}")
 
 
 
