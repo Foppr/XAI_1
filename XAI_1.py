@@ -1,22 +1,24 @@
 import pandas as pd
 import numpy as np
-import geopandas
-import geodatasets
 from bokeh import plotting, layouts, io, transform, palettes
 from bokeh.models import CustomJS, Dropdown, ColumnDataSource, FactorRange, GeoJSONDataSource, Range1d, LinearAxis
-# from bokeh.sampledata.sample_geojson import geojson
-import json
-import matplotlib
-# import pgeocode
 
-from shapely.geometry import Polygon
+# packages used in unsuccessful tries to make visualizations on geographical map
+# from bokeh.sampledata.sample_geojson import geojson
+# import geopandas
+# import geodatasets
+# import json
+# import matplotlib
+# import pgeocode
+#from shapely.geometry import Polygon
 
 from currency_converter import CurrencyConverter
 from pathlib import Path
 from datetime import datetime
 
-c = CurrencyConverter(fallback_on_missing_rate=True)
+c = CurrencyConverter(fallback_on_missing_rate=True) # object to convert currencies
 io.output_file(filename='Dashboard.html', title="Complete Reference for Dungeons and Dragons 5 - Visual Analytics")
+
 
 # region pre-processing
 
@@ -28,8 +30,8 @@ for csv in path_name:
     df = pd.read_csv(csv, encoding='utf-8', sep=',')
     sales.append(df)
 
-# The formats of sales files 6 and 7 are different than those in 1-5
-# CHANGE 67 NAMES TO 1-5 NAMES
+# The formats of sales files 6 and 7 (November and December) are different than those in 1-5
+# changing column names in files 6 and 7 to fit with the others
 for csv in ['assignment1_data/sales_202111.csv', 'assignment1_data/sales_202112.csv']:
     df = pd.read_csv(csv, encoding='utf-8', sep=',')
     df = df.rename(columns={
@@ -40,30 +42,25 @@ for csv in ['assignment1_data/sales_202111.csv', 'assignment1_data/sales_202112.
         'Postal Code of Buyer': 'Buyer Postal Code',
     })
 
-    # Note: November and December only have Charged Amount, which is in the original currency and not in EUR,
-    # (as opposed to the previous months that have Amount (Merchant Currency) In EUR. Converting every Charged Amount
-    # to EUR seems infeasible, but we should ask
-
-    # for cell in df['Transaction Date']:
-    #     cell = datetime.strptime(f"{cell}", "%Y-%m-%d")
-    #     cell = cell.strftime("%b %d, %Y")
-
+    # change format of date to fit with other months
     df['Transaction Date'] = df['Transaction Date'].apply(lambda x: datetime.strptime(f"{x}", "%Y-%m-%d"))
     df['Transaction Date'] = df['Transaction Date'].apply(lambda x: x.strftime("%b %d, %Y"))
+    # Note: the 67 dates say Nov 01 now while the 1-5 say Nov 1, but it does not impact results
 
+    # There are some charged amounts that are strings and that contain a comma, removing comma and converting to float
     df['Charged Amount'] = df['Charged Amount'].apply(
         lambda x: float(x.replace(',', '')) if isinstance(x, str) else float(x))
 
-    # Change currency to EUR
-    # df['Amount (Merchant Currency)'] = c.convert(df['Amount (Merchant Currency)'], 'EUR', df['Currency of Sale'], date=df['Transaction Date'])
+    # Charged amounts in Nov and Dec are in original currency. Convert to EUR
     converted_amounts = []
     for i, row in df.iterrows():
         dt = datetime.strptime(row['Transaction Date'], "%b %d, %Y")
+        # try to convert using the conversion rate from the transaction date (from the data in currency_converter library)
         try:
             amount = c.convert(row['Charged Amount'], row['Currency of Sale'], 'EUR', date=dt)
             converted_amounts.append(amount)
+        # for currencies not available in currency_converter, manually check average conversion rate of transaction month
         except:
-            # No data for: GHS and GBP; we took the average conversion rates of November/December
             if row['Currency of Sale'] == 'GHS':
                 amount = row['Charged Amount'] * 0.1432
             elif row['Currency of Sale'] == 'COP':
@@ -71,35 +68,23 @@ for csv in ['assignment1_data/sales_202111.csv', 'assignment1_data/sales_202112.
             elif row['Currency of Sale'] == 'CRC':
                 amount = row['Charged Amount'] * 0.0014
             else:
-                amount = 'NaN'
+                amount = 'NaN' # if no conversion is handled, set amount to NaN (should not happen)
 
             converted_amounts.append(amount)
 
     df['Amount (Merchant Currency)'] = converted_amounts
 
-    # df['Transaction Date'] = datetime.strptime(f"{df['Transaction Date']}", "%Y-%m-%d")
-    # df['Transaction Date'] = df['Transaction Date'].strftime("%b %d, %Y")
-    # print(df[:5].to_string())
-
-    # print(df.to_string())
-
     sales.append(df)
 
-    # Note: the 67 dates say Nov 01 now while the 1-5 say Nov 1, so maybe need to fix this later
-
-# for i, row in sales[-2].iterrows():
-#     print(type(row['Amount (Merchant Currency)']))
-
 sales_db = pd.concat(sales)
-# print(sales_db[-61:-1].to_string())
 
 # only use charges for com.vansteinengroentjes.apps.ddfive
 sales_db = sales_db.rename(columns={'Product id': 'Product_id'})
 sales_db = sales_db[(sales_db['Product_id'] == 'com.vansteinengroentjes.apps.ddfive')]
-# print(sales_db.to_string())
 
 
 # --------------- STATS CRASHES --------------------------------------------------
+# read csv into a pandas dataframe, concatenate all months to a single df
 path_name = Path('assignment1_data').glob(r'stats_crashes*')
 stats_crashes = []
 for csv in path_name:
@@ -109,6 +94,8 @@ for csv in path_name:
 crashes_db = pd.concat(stats_crashes, ignore_index=True)
 
 # --------------- RATINGS COUNTRY --------------------------------------------------
+# read csv into a pandas dataframe, concatenate all months to a single df
+
 path_name = Path('assignment1_data').glob(r'stats_ratings*country*')
 ratings_countries = []
 for csv in path_name:
@@ -116,9 +103,9 @@ for csv in path_name:
     ratings_countries.append(df)
 
 ratings_countries_db = pd.concat(ratings_countries, ignore_index=True)
-# print(ratings_countries_db[:20].to_string())
 
 # --------------- RATINGS OVERVIEW --------------------------------------------------
+# read csv into a pandas dataframe, concatenate all months to a single df
 path_name = Path('assignment1_data').glob(r'stats_ratings*overview*')
 ratings_overview = []
 for csv in path_name:
@@ -133,6 +120,7 @@ ratings_overview_db = pd.concat(ratings_overview, ignore_index=True)
 
 # --------------- Collect data for plots --------------------------------------------------
 # Sales
+# initialize lists and dictionaries used for sales graphs
 days = []
 months = []
 sku_ids = []
@@ -144,10 +132,12 @@ total_monthly_sales = {}
 sku_id_per_month_amount = {}
 sku_id_per_month_count = {}
 
+# iterate through all rows of sales db (all transactions)
 for i, row in sales_db.iterrows():
     country = row['Buyer Country']
     date = row['Transaction Date']
 
+    # get total revenue and transaction count per day
     if date not in days:
         days.append(date)
         daily_merchant_amount[date] = float(row['Amount (Merchant Currency)'])
@@ -156,6 +146,7 @@ for i, row in sales_db.iterrows():
         daily_merchant_amount[date] += float(row['Amount (Merchant Currency)'])
         daily_transaction_count[date] += 1
 
+    # get total revenue and transaction count per month
     if date[:3] not in months:
         months.append(date[:3])
         month_no = months.index(date[:3])  # 0 for jun, 1 for jul, etc.
@@ -177,6 +168,7 @@ for i, row in sales_db.iterrows():
                                                     total_monthly_sales[country][month_no][1]
 
         # Sku IDs
+        # get the total sales for each sku id per month
         sku_id = row['Sku Id']
         for sku_dict in [sku_id_per_month_amount, sku_id_per_month_count]:
             for sku_id_list in sku_dict.values():
@@ -208,6 +200,7 @@ for i, row in sales_db.iterrows():
                                                     total_monthly_sales[country][month_no][1]
 
         # Sku IDs
+        # get the total sales for each sku id per month
         sku_id = row['Sku Id']
         if sku_id not in sku_id_per_month_amount:
             sku_id_per_month_amount[sku_id] = [float(row['Amount (Merchant Currency)'])]
@@ -217,36 +210,30 @@ for i, row in sales_db.iterrows():
             sku_id_per_month_amount[sku_id][-1] += float(row['Amount (Merchant Currency)'])
             sku_id_per_month_count[sku_id][-1] += 1
 
-# print months
-# for date, merchant_amount in monthly_merchant_amount.items():
-#     print(date, merchant_amount)
-#
-# for date, transaction_count in monthly_transaction_count.items():
-#     print(date, transaction_count)
-#
-# for e in total_monthly_sales.items():
-#     print(e)
-
 # endregion data collecting
 
+
 # region dashboard
-sales_source = ColumnDataSource(data=sales_db)
 x = months
 
+# monthly sales
 y = list(monthly_merchant_amount.values())
 p1 = plotting.figure(x_range=x, title='Monthly Sales', toolbar_location=None, tools="hover", tooltips="@x: $y")
 p1.vbar(x, top=y, width=0.5)
 
+# monthly transaction counts
 p2 = plotting.figure(x_range=x, title='Monthly Transaction Counts', toolbar_location=None, tools="hover", tooltips="@x: $y")
 y = list(monthly_transaction_count.values())
 p2.vbar(x, top=y, width=0.5)
 
 x = days
 
+# daily sales
 p3 = plotting.figure(x_range=x, title='Daily Sales', toolbar_location=None, tools="hover", tooltips="@x: $y")
 y = list(daily_merchant_amount.values())
 p3.line(x, y)
 
+# daily transaction counts
 p4 = plotting.figure(x_range=x, title='Daily Transaction Counts', toolbar_location=None, tools="hover", tooltips="@x: $y")
 y = list(daily_transaction_count.values())
 p4.line(x, y)
@@ -260,6 +247,7 @@ data_count = {"months": months}
 for key, value in sku_id_per_month_count.items():
     data_count[key] = value
 
+# plot monthly sales for each sku id
 source = ColumnDataSource(data=data_amount)
 
 p1sku = plotting.figure(x_range=months, title="Monthly Sales by Sku Id",
@@ -276,6 +264,7 @@ p1sku.xgrid.grid_line_color = None
 p1sku.legend.location = "top_left"
 p1sku.legend.orientation = "horizontal"
 
+# plot monthly transaction counts for each sku id
 source = ColumnDataSource(data=data_count)
 
 p2sku = plotting.figure(x_range=months, title="Monthly Transaction Counts by Sku Id",
@@ -292,8 +281,9 @@ p2sku.xgrid.grid_line_color = None
 p2sku.legend.location = "top_left"
 p2sku.legend.orientation = "horizontal"
 
+
 # Sales volume by country
-relevant_countries = ['GB', 'NL', 'AU', 'CA', 'DE']
+relevant_countries = ['GB', 'NL', 'AU', 'CA', 'DE'] # chose relevant countries as countries that have enough data
 
 transaction_counts = {'months': months}
 sales_by_transaction_count = {'months': months}
@@ -317,6 +307,7 @@ sales_by_count = ((sales_by_transaction_count['GB']) +
 source_counts = ColumnDataSource(data=dict(x=x, counts=counts))
 source_sales_by_count = ColumnDataSource(data=dict(x=x, counts=sales_by_count))
 
+# plot monthly transaction counts and monthly average revenue per transaction by country
 pcountries = plotting.figure(x_range=FactorRange(*x), height=500, title="Monthly transaction counts by country",
                              toolbar_location=None, tools="hover", tooltips="@x: $y")
 pcountries_salesbycount = plotting.figure(x_range=FactorRange(*x), height=500, title="Monthly average revenue per transaction",
@@ -335,11 +326,6 @@ pcountries_salesbycount.x_range.range_padding = 0.1
 pcountries_salesbycount.xaxis.major_label_orientation = 1
 pcountries_salesbycount.xgrid.grid_line_color = None
 
-# plotting.show(pcountries)
-
-# crashes_source = ColumnDataSource(data=stats_db)
-# ratings_countries_source = ColumnDataSource(data=ratings_countries_db)
-
 # crashes:
 
 crashes_list = []
@@ -347,16 +333,17 @@ ratings_list = []
 daily_ratings = {}
 daily_crashes = {}
 for i, row in ratings_overview_db.iterrows():
-    # print(i)
+    # format date like Jun 01, 2021
     date = datetime.strptime(row['Date'], "%Y-%m-%d")
     date = date.strftime("%b %d, %Y")
-    # date_month = date[0:2]
 
+    # get daily crashes and daily reviews
     if date not in daily_crashes:
         daily_crashes[date] = 0
     daily_crashes[date] += float(crashes_db.iloc[i]["Daily Crashes"])
 
     r = row["Daily Average Rating"]
+    # handle missing values
     if pd.isna(r):
         r = float('nan')
     else:
@@ -365,11 +352,14 @@ for i, row in ratings_overview_db.iterrows():
         daily_ratings[date] = 0
     daily_ratings[date] += r
 
+    # get crashes and reviews for reviews by crash scatter plot
+    # skip missing values
     if pd.isna(row["Daily Average Rating"]):
         continue
     ratings_list.append(row["Daily Average Rating"])
     crashes_list.append(crashes_db.iloc[i]["Daily Crashes"])
 
+# scatter plot: reviews by crashes
 rxc = plotting.figure(title="Daily Average Rating by Daily Crashes")
 
 # points to be plotted
@@ -383,6 +373,10 @@ rxc.scatter(ratings_list, crashes_list)
 # plot regression line
 rxc.line(ratings_list, y_predicted, color='red')
 
+
+# customer satisfaction:
+# get all ratings per country
+# get amount of negative ratings per country. define negative ratings < 3
 ratings_by_country = {}
 neg_rating_counts_by_country = {}
 for i, row in ratings_countries_db.iterrows():
@@ -399,10 +393,12 @@ for i, row in ratings_countries_db.iterrows():
             neg_rating_counts_by_country[country] = [0]
         neg_rating_counts_by_country[country][0] += 1
 
+# get average rating per country (sum of all ratings divided by amount of ratings)
 avg_rating_by_country = {}
 for c in ratings_by_country.keys():
-    if len(ratings_by_country[c]) != 0:
+    if len(ratings_by_country[c]) != 0: # handle division by 0
         avg_rating_by_country[c] = sum(ratings_by_country[c]) / len(ratings_by_country[c])
+
 
 
 countries = [country for country in avg_rating_by_country.keys()]
@@ -411,6 +407,8 @@ avg_rating = [rating for rating in avg_rating_by_country.values()]
 print(len(avg_rating), avg_rating)
 no_ratings = [len(ratings) for ratings in ratings_by_country.values() if len(ratings) != 0]
 print(len(no_ratings), no_ratings)
+
+# plot stacked bar plot: amount of ratings on top of average rating (to show relevance of data)
 stacks = ['avg_rating', 'no_ratings']
 
 data = {'countries': countries,
@@ -434,29 +432,21 @@ pRatingsAndNumberRatings.outline_line_color = None
 pRatingsAndNumberRatings.legend.location = "top_left"
 pRatingsAndNumberRatings.legend.orientation = "horizontal"
 
-# plotting.show(pRatingsAndNumberRatings)
 
-# x = list(avg_rating_by_country.keys())
-# y = list(avg_rating_by_country.values())
-# sorted_x = sorted(x, key=lambda xx: y[x.index(xx)])
-# pAVGratings = plotting.figure(x_range=sorted_x, title='Average Ratings', toolbar_location=None, tools="hover", tooltips="@x: $y")
-# pAVGratings.vbar(x, top=y, width=0.5)
-
+# plot amount of negative ratings per country
 x = list(neg_rating_counts_by_country.keys())
 pNegRatings = plotting.figure(x_range=x, title='Amount of Ratings lower than 3/5', toolbar_location=None, tools="hover", tooltips="@x: $y")
 y = list(neg_rating_counts_by_country.values())
 pNegRatings.vbar(x, top=y, width=0.5)
 
-# avg_monthly_ratings = {}
-# for m in monthly_ratings.keys():
-#     if len(monthly_ratings[m]) != 0:
-#         avg_monthly_ratings[m] = sum(monthly_ratings[m]) / len(monthly_ratings[m])
 
+# make line plot for daily average rating and daily crashes
 x = list(daily_crashes.keys())
 pMonthlyRatings = plotting.figure(x_range=x, title='Daily Average Ratings and Daily Crashes', toolbar_location=None, tools="hover", tooltips="@x: $y")
 y = list(daily_crashes.values())
 pMonthlyRatings.line(x, y, color='red', legend_label="Crashes")
 
+# make a new y range on the right side for ratings (0-5), otherwise fluctuations in ratings are too small to be visible on graph
 x = list(daily_ratings.keys())
 pMonthlyRatings.extra_y_ranges = {"ratings": Range1d(start=0, end=5)}
 pMonthlyRatings.add_layout(LinearAxis(y_range_name="ratings", axis_label="Rating (0-5)"), 'right')
@@ -464,6 +454,7 @@ y = list(daily_ratings.values())
 pMonthlyRatings.line(x, y, color='blue', legend_label="Ratings", y_range_name="ratings")
 
 # displaying the model
+# make two columns of graphs, fill rows from left to right
 graphs = [p1, p2, p3, p4, p1sku, p2sku, rxc, pcountries, pcountries_salesbycount, pRatingsAndNumberRatings, pNegRatings,pMonthlyRatings]
 cols = []
 row_num = 2
@@ -475,6 +466,9 @@ plotting.show(layouts.column(cols))
 # endregion dashboard
 
 # region countries
+
+# failed attempts at getting a visualization of data on a map
+
 # ------------------------------------- COUNTRIES -------------------------------------
 
 # ---------------------------------------------
@@ -532,6 +526,9 @@ plotting.show(layouts.column(cols))
 
 # endregion countries
 
+# region extra
+
+# tried growth to find emerging countries, no clear trend could be found
 
 # growth = {}
 # for i, row in sales_db.iterrows():
@@ -556,3 +553,5 @@ plotting.show(layouts.column(cols))
 # for rank, (country, values) in enumerate(ranking, start=1):
 #     g = values[2]
 #     print(f"{rank}. {country} - Growth: {g:.2f} (Months 1-2 vs 6-7: {values[0]}, {values[1]})")
+
+# endregion extra
