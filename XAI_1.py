@@ -345,25 +345,31 @@ pcountries_salesbycount.xgrid.grid_line_color = None
 crashes_list = []
 ratings_list = []
 daily_ratings = {}
-monthly_crashes = {}
+daily_crashes = {}
 for i, row in ratings_overview_db.iterrows():
     # print(i)
     date = datetime.strptime(row['Date'], "%Y-%m-%d")
     date = date.strftime("%b %d, %Y")
-    date_month = date[0:2]
+    # date_month = date[0:2]
 
-    if date_month not in monthly_crashes:
-        monthly_crashes[date_month] = 0
-    monthly_crashes[date_month] += float(crashes_db.iloc[i]["Daily Crashes"])
+    if date not in daily_crashes:
+        daily_crashes[date] = 0
+    daily_crashes[date] += float(crashes_db.iloc[i]["Daily Crashes"])
+
+    r = row["Daily Average Rating"]
+    if pd.isna(r):
+        r = float('nan')
+    else:
+        r = float(r)
+    if date not in daily_ratings:
+        daily_ratings[date] = 0
+    daily_ratings[date] += r
+
 
     if pd.isna(row["Daily Average Rating"]):
         continue
     ratings_list.append(row["Daily Average Rating"])
     crashes_list.append(crashes_db.iloc[i]["Daily Crashes"])
-
-    if date not in daily_ratings:
-        daily_ratings[date_month] = []
-    daily_ratings[date_month].append(float(row["Daily Average Rating"]))
 
 rxc = plotting.figure(title="Daily Average Rating by Daily Crashes")
 
@@ -410,20 +416,20 @@ pNegRatings = plotting.figure(x_range=x, title='Amount of Ratings lower than 3/5
 y = list(neg_rating_counts_by_country.values())
 pNegRatings.vbar(x, top=y, width=0.5)
 
-avg_monthly_ratings = {}
-for m in monthly_ratings.keys():
-    if len(monthly_ratings[m]) != 0:
-        avg_monthly_ratings[m] = sum(monthly_ratings[m]) / len(monthly_ratings[m])
+# avg_monthly_ratings = {}
+# for m in monthly_ratings.keys():
+#     if len(monthly_ratings[m]) != 0:
+#         avg_monthly_ratings[m] = sum(monthly_ratings[m]) / len(monthly_ratings[m])
 
-x = list(monthly_crashes.keys())
+x = list(daily_crashes.keys())
 pMonthlyRatings = plotting.figure(x_range=x, title='Monthly Ratings and Monthly Crashes')
-y = list(monthly_crashes.values())
+y = list(daily_crashes.values())
 pMonthlyRatings.line(x, y, color='red', legend_label="Crashes")
 
-x = list(avg_monthly_ratings.keys())
+x = list(daily_ratings.keys())
 pMonthlyRatings.extra_y_ranges = {"ratings": Range1d(start=0, end=5)}
 pMonthlyRatings.add_layout(LinearAxis(y_range_name="ratings", axis_label="Rating (0-5)"), 'right')
-y = list(avg_monthly_ratings.values())
+y = list(daily_ratings.values())
 pMonthlyRatings.line(x, y, color='blue', legend_label="Ratings", y_range_name="ratings")
 
 # displaying the model
