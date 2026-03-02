@@ -3,7 +3,7 @@ import numpy as np
 import geopandas
 import geodatasets
 from bokeh import plotting, layouts, io, transform
-from bokeh.models import CustomJS, Dropdown, ColumnDataSource, FactorRange, GeoJSONDataSource
+from bokeh.models import CustomJS, Dropdown, ColumnDataSource, FactorRange, GeoJSONDataSource, Range1d, LinearAxis
 # from bokeh.sampledata.sample_geojson import geojson
 import json
 import matplotlib
@@ -344,13 +344,26 @@ pcountries_salesbycount.xgrid.grid_line_color = None
 
 crashes_list = []
 ratings_list = []
-
+daily_ratings = {}
+monthly_crashes = {}
 for i, row in ratings_overview_db.iterrows():
     # print(i)
+    date = datetime.strptime(row['Date'], "%Y-%m-%d")
+    date = date.strftime("%b %d, %Y")
+    date_month = date[0:2]
+
+    if date_month not in monthly_crashes:
+        monthly_crashes[date_month] = 0
+    monthly_crashes[date_month] += float(crashes_db.iloc[i]["Daily Crashes"])
+
     if pd.isna(row["Daily Average Rating"]):
         continue
     ratings_list.append(row["Daily Average Rating"])
     crashes_list.append(crashes_db.iloc[i]["Daily Crashes"])
+
+    if date not in daily_ratings:
+        daily_ratings[date_month] = []
+    daily_ratings[date_month].append(float(row["Daily Average Rating"]))
 
 rxc = plotting.figure(title="Daily Average Rating by Daily Crashes")
 
@@ -365,8 +378,56 @@ rxc.scatter(ratings_list, crashes_list)
 # plot regression line
 rxc.line(ratings_list, y_predicted, color='red')
 
+ratings_by_country = {}
+neg_rating_counts_by_country = {}
+for i, row in ratings_countries_db.iterrows():
+    country = row['Country']
+    if country not in ratings_by_country:
+        ratings_by_country[country] = []
+    rating =row['Daily Average Rating']
+    if pd.isna(rating):
+        continue
+    rating = float(rating)
+    ratings_by_country[country].append(rating)
+    if rating < 3:
+        if country not in neg_rating_counts_by_country:
+            neg_rating_counts_by_country[country] = [0]
+        neg_rating_counts_by_country[country][0] += 1
+
+avg_rating_by_country = {}
+for c in ratings_by_country.keys():
+    if len(ratings_by_country[c]) != 0:
+        avg_rating_by_country[c] = sum(ratings_by_country[c]) / len(ratings_by_country[c])
+
+x = list(avg_rating_by_country.keys())
+y = list(avg_rating_by_country.values())
+sorted_x = sorted(x, key=lambda xx: y[x.index(xx)])
+pAVGratings = plotting.figure(x_range=sorted_x, title='Average Ratings')
+pAVGratings.vbar(x, top=y, width=0.5)
+
+x = list(neg_rating_counts_by_country.keys())
+pNegRatings = plotting.figure(x_range=x, title='Amount of Ratings lower than 3/5')
+y = list(neg_rating_counts_by_country.values())
+pNegRatings.vbar(x, top=y, width=0.5)
+
+avg_monthly_ratings = {}
+for m in monthly_ratings.keys():
+    if len(monthly_ratings[m]) != 0:
+        avg_monthly_ratings[m] = sum(monthly_ratings[m]) / len(monthly_ratings[m])
+
+x = list(monthly_crashes.keys())
+pMonthlyRatings = plotting.figure(x_range=x, title='Monthly Ratings and Monthly Crashes')
+y = list(monthly_crashes.values())
+pMonthlyRatings.line(x, y, color='red', legend_label="Crashes")
+
+x = list(avg_monthly_ratings.keys())
+pMonthlyRatings.extra_y_ranges = {"ratings": Range1d(start=0, end=5)}
+pMonthlyRatings.add_layout(LinearAxis(y_range_name="ratings", axis_label="Rating (0-5)"), 'right')
+y = list(avg_monthly_ratings.values())
+pMonthlyRatings.line(x, y, color='blue', legend_label="Ratings", y_range_name="ratings")
+
 # displaying the model
-graphs = [p1, p2, p3, p4, p1sku, p2sku, rxc, pcountries, pcountries_salesbycount]
+graphs = [p1, p2, p3, p4, p1sku, p2sku, rxc, pcountries, pcountries_salesbycount, pAVGratings, pNegRatings,pMonthlyRatings]
 cols = []
 row_num = 2
 for i in range(0, len(graphs), row_num):
