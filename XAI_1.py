@@ -16,7 +16,7 @@ from pathlib import Path
 from datetime import datetime
 
 c = CurrencyConverter(fallback_on_missing_rate=True)
-io.output_file('Dashboard.html')
+io.output_file(filename='Dashboard.html', title="Complete Reference for Dungeons and Dragons 5 - Visual Analytics")
 
 # region pre-processing
 
@@ -233,21 +233,21 @@ for i, row in sales_db.iterrows():
 sales_source = ColumnDataSource(data=sales_db)
 x = months
 
-p1 = plotting.figure(x_range=x, title='Monthly Sales')
 y = list(monthly_merchant_amount.values())
+p1 = plotting.figure(x_range=x, title='Monthly Sales', toolbar_location=None, tools="hover", tooltips="@x: $y")
 p1.vbar(x, top=y, width=0.5)
 
-p2 = plotting.figure(x_range=x, title='Monthly Transaction Counts')
+p2 = plotting.figure(x_range=x, title='Monthly Transaction Counts', toolbar_location=None, tools="hover", tooltips="@x: $y")
 y = list(monthly_transaction_count.values())
 p2.vbar(x, top=y, width=0.5)
 
 x = days
 
-p3 = plotting.figure(x_range=x, title='Daily Sales')
+p3 = plotting.figure(x_range=x, title='Daily Sales', toolbar_location=None, tools="hover", tooltips="@x: $y")
 y = list(daily_merchant_amount.values())
 p3.line(x, y)
 
-p4 = plotting.figure(x_range=x, title='Daily Transaction Counts')
+p4 = plotting.figure(x_range=x, title='Daily Transaction Counts', toolbar_location=None, tools="hover", tooltips="@x: $y")
 y = list(daily_transaction_count.values())
 p4.line(x, y)
 
@@ -263,7 +263,7 @@ for key, value in sku_id_per_month_count.items():
 source = ColumnDataSource(data=data_amount)
 
 p1sku = plotting.figure(x_range=months, title="Monthly Sales by Sku Id",
-                        height=350, toolbar_location=None, tools="")
+                        height=350, toolbar_location=None, tools="hover", tooltips="@months: $y")
 
 p1sku.vbar(x=transform.dodge('months', -0.25, range=p1sku.x_range), top='unlockcharactermanager', source=source,
            width=0.2, color="#c9d9d3", legend_label="unlockcharactermanager")
@@ -279,7 +279,7 @@ p1sku.legend.orientation = "horizontal"
 source = ColumnDataSource(data=data_count)
 
 p2sku = plotting.figure(x_range=months, title="Monthly Transaction Counts by Sku Id",
-                        height=350, toolbar_location=None, tools="")
+                        height=350, toolbar_location=None, tools="hover", tooltips="@months: $y")
 
 p2sku.vbar(x=transform.dodge('months', -0.25, range=p2sku.x_range), top='unlockcharactermanager', source=source,
            width=0.2, color="#c9d9d3", legend_label="unlockcharactermanager")
@@ -318,9 +318,9 @@ source_counts = ColumnDataSource(data=dict(x=x, counts=counts))
 source_sales_by_count = ColumnDataSource(data=dict(x=x, counts=sales_by_count))
 
 pcountries = plotting.figure(x_range=FactorRange(*x), height=350, title="Monthly transaction counts by country",
-                             toolbar_location=None, tools="")
+                             toolbar_location=None, tools="hover", tooltips="@x: $y")
 pcountries_salesbycount = plotting.figure(x_range=FactorRange(*x), height=350, title="Monthly average revenue per transaction",
-                             toolbar_location=None, tools="")
+                             toolbar_location=None, tools="hover", tooltips="@x: $y")
 
 pcountries.vbar(x='x', top='counts', width=0.9, source=source_counts)
 pcountries_salesbycount.vbar(x='x', top='counts', width=0.9, source=source_sales_by_count)
@@ -408,11 +408,11 @@ for c in ratings_by_country.keys():
 x = list(avg_rating_by_country.keys())
 y = list(avg_rating_by_country.values())
 sorted_x = sorted(x, key=lambda xx: y[x.index(xx)])
-pAVGratings = plotting.figure(x_range=sorted_x, title='Average Ratings')
+pAVGratings = plotting.figure(x_range=sorted_x, title='Average Ratings', toolbar_location=None, tools="hover", tooltips="@x: $y")
 pAVGratings.vbar(x, top=y, width=0.5)
 
 x = list(neg_rating_counts_by_country.keys())
-pNegRatings = plotting.figure(x_range=x, title='Amount of Ratings lower than 3/5')
+pNegRatings = plotting.figure(x_range=x, title='Amount of Ratings lower than 3/5', toolbar_location=None, tools="hover", tooltips="@x: $y")
 y = list(neg_rating_counts_by_country.values())
 pNegRatings.vbar(x, top=y, width=0.5)
 
@@ -422,7 +422,7 @@ pNegRatings.vbar(x, top=y, width=0.5)
 #         avg_monthly_ratings[m] = sum(monthly_ratings[m]) / len(monthly_ratings[m])
 
 x = list(daily_crashes.keys())
-pMonthlyRatings = plotting.figure(x_range=x, title='Monthly Ratings and Monthly Crashes')
+pMonthlyRatings = plotting.figure(x_range=x, title='Monthly Ratings and Monthly Crashes', toolbar_location=None, tools="hover", tooltips="@x: $y")
 y = list(daily_crashes.values())
 pMonthlyRatings.line(x, y, color='red', legend_label="Crashes")
 
