@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 import geopandas
 import geodatasets
-from bokeh import plotting, layouts, io, transform
+from bokeh import plotting, layouts, io, transform, palettes
 from bokeh.models import CustomJS, Dropdown, ColumnDataSource, FactorRange, GeoJSONDataSource, Range1d, LinearAxis
 # from bokeh.sampledata.sample_geojson import geojson
 import json
@@ -317,9 +317,9 @@ sales_by_count = ((sales_by_transaction_count['GB']) +
 source_counts = ColumnDataSource(data=dict(x=x, counts=counts))
 source_sales_by_count = ColumnDataSource(data=dict(x=x, counts=sales_by_count))
 
-pcountries = plotting.figure(x_range=FactorRange(*x), height=350, title="Monthly transaction counts by country",
+pcountries = plotting.figure(x_range=FactorRange(*x), height=500, title="Monthly transaction counts by country",
                              toolbar_location=None, tools="hover", tooltips="@x: $y")
-pcountries_salesbycount = plotting.figure(x_range=FactorRange(*x), height=350, title="Monthly average revenue per transaction",
+pcountries_salesbycount = plotting.figure(x_range=FactorRange(*x), height=500, title="Monthly average revenue per transaction",
                              toolbar_location=None, tools="hover", tooltips="@x: $y")
 
 pcountries.vbar(x='x', top='counts', width=0.9, source=source_counts)
@@ -365,7 +365,6 @@ for i, row in ratings_overview_db.iterrows():
         daily_ratings[date] = 0
     daily_ratings[date] += r
 
-
     if pd.isna(row["Daily Average Rating"]):
         continue
     ratings_list.append(row["Daily Average Rating"])
@@ -405,11 +404,43 @@ for c in ratings_by_country.keys():
     if len(ratings_by_country[c]) != 0:
         avg_rating_by_country[c] = sum(ratings_by_country[c]) / len(ratings_by_country[c])
 
-x = list(avg_rating_by_country.keys())
-y = list(avg_rating_by_country.values())
-sorted_x = sorted(x, key=lambda xx: y[x.index(xx)])
-pAVGratings = plotting.figure(x_range=sorted_x, title='Average Ratings', toolbar_location=None, tools="hover", tooltips="@x: $y")
-pAVGratings.vbar(x, top=y, width=0.5)
+
+countries = [country for country in avg_rating_by_country.keys()]
+print(len(countries), countries)
+avg_rating = [rating for rating in avg_rating_by_country.values()]
+print(len(avg_rating), avg_rating)
+no_ratings = [len(ratings) for ratings in ratings_by_country.values() if len(ratings) != 0]
+print(len(no_ratings), no_ratings)
+stacks = ['avg_rating', 'no_ratings']
+
+data = {'countries': countries,
+        'avg_rating': avg_rating,
+        'no_ratings': no_ratings
+        }
+
+sorted_x = sorted(countries, key=lambda x: avg_rating[countries.index(x)])
+
+pRatingsAndNumberRatings = plotting.figure(x_range=sorted_x, height=500, title="Average Rating and Number of Ratings per Country",
+           toolbar_location=None, tools="hover", tooltips="$name @countries: @$name")
+
+pRatingsAndNumberRatings.vbar_stack(stacks, x='countries', color=('#004488', '#DDAA33'), width=0.9, source=data,
+             legend_label=stacks)
+
+pRatingsAndNumberRatings.y_range.start = 0
+pRatingsAndNumberRatings.x_range.range_padding = 0.1
+pRatingsAndNumberRatings.xgrid.grid_line_color = None
+pRatingsAndNumberRatings.axis.minor_tick_line_color = None
+pRatingsAndNumberRatings.outline_line_color = None
+pRatingsAndNumberRatings.legend.location = "top_left"
+pRatingsAndNumberRatings.legend.orientation = "horizontal"
+
+# plotting.show(pRatingsAndNumberRatings)
+
+# x = list(avg_rating_by_country.keys())
+# y = list(avg_rating_by_country.values())
+# sorted_x = sorted(x, key=lambda xx: y[x.index(xx)])
+# pAVGratings = plotting.figure(x_range=sorted_x, title='Average Ratings', toolbar_location=None, tools="hover", tooltips="@x: $y")
+# pAVGratings.vbar(x, top=y, width=0.5)
 
 x = list(neg_rating_counts_by_country.keys())
 pNegRatings = plotting.figure(x_range=x, title='Amount of Ratings lower than 3/5', toolbar_location=None, tools="hover", tooltips="@x: $y")
@@ -422,7 +453,7 @@ pNegRatings.vbar(x, top=y, width=0.5)
 #         avg_monthly_ratings[m] = sum(monthly_ratings[m]) / len(monthly_ratings[m])
 
 x = list(daily_crashes.keys())
-pMonthlyRatings = plotting.figure(x_range=x, title='Monthly Ratings and Monthly Crashes', toolbar_location=None, tools="hover", tooltips="@x: $y")
+pMonthlyRatings = plotting.figure(x_range=x, title='Daily Average Ratings and Daily Crashes', toolbar_location=None, tools="hover", tooltips="@x: $y")
 y = list(daily_crashes.values())
 pMonthlyRatings.line(x, y, color='red', legend_label="Crashes")
 
@@ -433,7 +464,7 @@ y = list(daily_ratings.values())
 pMonthlyRatings.line(x, y, color='blue', legend_label="Ratings", y_range_name="ratings")
 
 # displaying the model
-graphs = [p1, p2, p3, p4, p1sku, p2sku, rxc, pcountries, pcountries_salesbycount, pAVGratings, pNegRatings,pMonthlyRatings]
+graphs = [p1, p2, p3, p4, p1sku, p2sku, rxc, pcountries, pcountries_salesbycount, pRatingsAndNumberRatings, pNegRatings,pMonthlyRatings]
 cols = []
 row_num = 2
 for i in range(0, len(graphs), row_num):
